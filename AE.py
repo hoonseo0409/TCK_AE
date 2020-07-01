@@ -1,4 +1,5 @@
-import tensorflow as tf
+# import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import argparse
 from TS_datasets import getBlood
 import time
@@ -7,6 +8,7 @@ import matplotlib.pyplot as plt
 from utils import classify_with_knn, interp_data, mse_and_corr, dim_reduction_plot
 import math
 
+tf.disable_eager_execution()
 dim_red = 1 # perform PCA on the codes and plot the first two components
 plot_on = 1 # plot the results, otherwise only textual output is returned
 interp_on = 0 # interpolate data (needed if the input time series have different length)
@@ -130,7 +132,8 @@ for variable in tf.trainable_variables():
     shape = variable.get_shape()
     variable_parametes = 1
     for dim in shape:
-        variable_parametes *= dim.value
+        # variable_parametes *= dim.value
+        variable_parametes *= dim
     total_parameters += variable_parametes
 print('Total parameters: {}'.format(total_parameters))
 
