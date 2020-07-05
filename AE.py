@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from utils import classify_with_knn, interp_data, mse_and_corr, dim_reduction_plot
 import math
+import image_datasets
 
 tf.disable_eager_execution()
 dim_red = 1 # perform PCA on the codes and plot the first two components
@@ -29,9 +30,14 @@ args = parser.parse_args()
 print(args)
 
 # ================= DATASET =================
+# original blood dataset
 (train_data, train_labels, train_len, _, K_tr,
         valid_data, _, valid_len, _, K_vs,
         test_data_orig, test_labels, test_len, _, K_ts) = getBlood(kernel='TCK', inp='zero') # data shape is [T, N, V] = [time_steps, num_elements, num_var]
+
+# image dataset
+train_data = image_datasets.get_input_image("./Data/images/", 0, 200, 50, 50)
+train_len = train_data.shape[1]
 
 # sort test data (for a better visualization of the inner product of the codes)
 sort_idx = np.argsort(test_labels,axis=0)[:,0]
@@ -51,10 +57,10 @@ else:
 # transpose and reshape [T, N, V] --> [N, T, V] --> [N, T*V]
 train_data = np.transpose(train_data,axes=[1,0,2])
 train_data = np.reshape(train_data, (train_data.shape[0], train_data.shape[1]*train_data.shape[2]))
-valid_data = np.transpose(valid_data,axes=[1,0,2])
-valid_data = np.reshape(valid_data, (valid_data.shape[0], valid_data.shape[1]*valid_data.shape[2]))
-test_data = np.transpose(test_data,axes=[1,0,2])
-test_data = np.reshape(test_data, (test_data.shape[0], test_data.shape[1]*test_data.shape[2]))   
+# valid_data = np.transpose(valid_data,axes=[1,0,2])
+# valid_data = np.reshape(valid_data, (valid_data.shape[0], valid_data.shape[1]*valid_data.shape[2]))
+# test_data = np.transpose(test_data,axes=[1,0,2])
+# test_data = np.reshape(test_data, (test_data.shape[0], test_data.shape[1]*test_data.shape[2]))   
 
 print('\n**** Processing Blood data: Tr{}, Vs{}, Ts{} ****\n'.format(train_data.shape, valid_data.shape, test_data.shape))
 
@@ -178,22 +184,22 @@ try:
             kloss_track.append(train_kloss)
             
         # check training progress on the validations set (in blood data valid=train) 
-        if ep % 100 == 0:            
-            print('Ep: {}'.format(ep))
+        # if ep % 100 == 0:            
+        #     print('Ep: {}'.format(ep))
             
-            fdvs = {encoder_inputs: valid_data,
-                    prior_K: K_vs}
-            outvs, lossvs, klossvs, vs_code_K, summary = sess.run([dec_out, reconstruct_loss, k_loss, code_K, merged_summary], fdvs)
-            train_writer.add_summary(summary, ep)
-            print('VS r_loss=%.3f, k_loss=%.3f -- TR r_loss=%.3f, k_loss=%.3f'%(lossvs, klossvs, np.mean(loss_track[-100:]), np.mean(kloss_track[-100:])))     
+        #     fdvs = {encoder_inputs: valid_data,
+        #             prior_K: K_vs}
+        #     outvs, lossvs, klossvs, vs_code_K, summary = sess.run([dec_out, reconstruct_loss, k_loss, code_K, merged_summary], fdvs)
+        #     train_writer.add_summary(summary, ep)
+        #     print('VS r_loss=%.3f, k_loss=%.3f -- TR r_loss=%.3f, k_loss=%.3f'%(lossvs, klossvs, np.mean(loss_track[-100:]), np.mean(kloss_track[-100:])))     
             
-            # Save model yielding best results on validation
-            if lossvs < min_vs_loss:
-                min_vs_loss = lossvs
-                tf.add_to_collection("encoder_inputs",encoder_inputs)
-                tf.add_to_collection("dec_out",dec_out)
-                tf.add_to_collection("reconstruct_loss",reconstruct_loss)
-                save_path = saver.save(sess, model_name)
+        #     # Save model yielding best results on validation
+        #     if lossvs < min_vs_loss:
+        #         min_vs_loss = lossvs
+        #         tf.add_to_collection("encoder_inputs",encoder_inputs)
+        #         tf.add_to_collection("dec_out",dec_out)
+        #         tf.add_to_collection("reconstruct_loss",reconstruct_loss)
+        #         save_path = saver.save(sess, model_name)
                                                     
 except KeyboardInterrupt:
     print('training interrupted')
@@ -203,60 +209,60 @@ time_tr_end = time.time()
 print('Tot training time: {}'.format((time_tr_end-time_tr_start)//60) )
 
 # ================= TEST =================
-print('************ TEST ************ \n>>restoring from:'+model_name+'<<')
+# print('************ TEST ************ \n>>restoring from:'+model_name+'<<')
 
-tf.reset_default_graph() # be sure that correct weights are loaded
-saver.restore(sess, model_name)
+# tf.reset_default_graph() # be sure that correct weights are loaded
+# saver.restore(sess, model_name)
 
-tr_code = sess.run(code, {encoder_inputs: train_data})
-pred, pred_loss, ts_code, ts_code_K = sess.run([dec_out, reconstruct_loss, code, code_K], {encoder_inputs: test_data})
-print('Test loss: %.3f'%(np.mean((pred-test_data)**2)))
+# tr_code = sess.run(code, {encoder_inputs: train_data})
+# pred, pred_loss, ts_code, ts_code_K = sess.run([dec_out, reconstruct_loss, code, code_K], {encoder_inputs: test_data})
+# print('Test loss: %.3f'%(np.mean((pred-test_data)**2)))
 
-# reverse transformations
-pred = np.reshape(pred, (test_data_orig.shape[1], test_data_orig.shape[0], test_data_orig.shape[2]))
-pred = np.transpose(pred,axes=[1,0,2])
-test_data = test_data_orig
+# # reverse transformations
+# pred = np.reshape(pred, (test_data_orig.shape[1], test_data_orig.shape[0], test_data_orig.shape[2]))
+# pred = np.transpose(pred,axes=[1,0,2])
+# test_data = test_data_orig
 
-if np.min(train_len) < np.max(train_len) and interp_on:
-    print('-- Reverse Interpolation --')
-    pred = interp_data(pred, test_len, restore=True)
+# if np.min(train_len) < np.max(train_len) and interp_on:
+#     print('-- Reverse Interpolation --')
+#     pred = interp_data(pred, test_len, restore=True)
 
-if plot_on:
+# if plot_on:
     
-    # plot the reconstruction of a random time series
-    plot_idx1 = np.random.randint(low=0,high=test_data.shape[1])
-    plot_idx2 = np.random.randint(low=0,high=test_data.shape[2])
-    target = test_data[:,plot_idx1,plot_idx2]
-    ts_out = pred[:,plot_idx1,plot_idx2]
-    plt.plot(target, label='target')
-    plt.plot(ts_out, label='pred')
-    plt.legend(loc='best')
-    plt.title('Prediction of a random MTS variable')
-    plt.show(block=True)  
-    np.savetxt('AE_pred',ts_out)
+#     # plot the reconstruction of a random time series
+#     plot_idx1 = np.random.randint(low=0,high=test_data.shape[1])
+#     plot_idx2 = np.random.randint(low=0,high=test_data.shape[2])
+#     target = test_data[:,plot_idx1,plot_idx2]
+#     ts_out = pred[:,plot_idx1,plot_idx2]
+#     plt.plot(target, label='target')
+#     plt.plot(ts_out, label='pred')
+#     plt.legend(loc='best')
+#     plt.title('Prediction of a random MTS variable')
+#     plt.show(block=True)  
+#     np.savetxt('AE_pred',ts_out)
         
-    plt.matshow(K_ts,cmap='binary_r')
-    plt.title('Prior TCK kernel')
-    plt.gca().axes.get_xaxis().set_ticks([])
-    plt.gca().axes.get_yaxis().set_ticks([])
-    plt.show()
-    plt.matshow(ts_code_K,cmap='binary_r')
-    plt.title('Codes inner products')
-    plt.gca().axes.get_xaxis().set_ticks([])
-    plt.gca().axes.get_yaxis().set_ticks([])
-    plt.show()
+#     plt.matshow(K_ts,cmap='binary_r')
+#     plt.title('Prior TCK kernel')
+#     plt.gca().axes.get_xaxis().set_ticks([])
+#     plt.gca().axes.get_yaxis().set_ticks([])
+#     plt.show()
+#     plt.matshow(ts_code_K,cmap='binary_r')
+#     plt.title('Codes inner products')
+#     plt.gca().axes.get_xaxis().set_ticks([])
+#     plt.gca().axes.get_yaxis().set_ticks([])
+#     plt.show()
 
-# MSE and corr
-test_mse, test_corr = mse_and_corr(test_data, pred, test_len)
-print('Test MSE: %.3f\nTest Pearson correlation: %.3f'%(test_mse, test_corr))
+# # MSE and corr
+# test_mse, test_corr = mse_and_corr(test_data, pred, test_len)
+# print('Test MSE: %.3f\nTest Pearson correlation: %.3f'%(test_mse, test_corr))
 
-# kNN classification on the codes
-acc, f1, auc = classify_with_knn(tr_code, train_labels[:, 0], ts_code, test_labels[:, 0], k=1)
-print('kNN -- acc: %.3f, F1: %.3f, AUC: %.3f'%(acc, f1, auc))
+# # kNN classification on the codes
+# acc, f1, auc = classify_with_knn(tr_code, train_labels[:, 0], ts_code, test_labels[:, 0], k=1)
+# print('kNN -- acc: %.3f, F1: %.3f, AUC: %.3f'%(acc, f1, auc))
 
-# dim reduction plots
-if dim_red:
-    dim_reduction_plot(ts_code, test_labels, 1)
+# # dim reduction plots
+# if dim_red:
+#     dim_reduction_plot(ts_code, test_labels, 1)
 
 #train_writer.close()
 sess.close()
