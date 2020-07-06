@@ -37,7 +37,7 @@ print(args)
 
 # image dataset
 train_data = image_datasets.get_input_image("./Data/images/", 0, 200, 50, 50)
-train_len = train_data.shape[1]
+train_len = [train_data.shape[2] for i in range(train_data.shape[1])]
 
 # sort test data (for a better visualization of the inner product of the codes)
 sort_idx = np.argsort(test_labels,axis=0)[:,0]
